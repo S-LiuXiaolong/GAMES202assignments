@@ -46,7 +46,7 @@ function GAMES202Main() {
 	// Add lights
 	// light - is open shadow map == true
 	let lightPos = [0, 80, 80];
-	let focalPoint = [0, 0, 0];
+	let focalPoint = [0, 30, 0];
 	let lightUp = [0, 1, 0]
 	// DirectionalLight 是 DirectionalLight.js 中自定义的类
 	const directionLight = new DirectionalLight(5000, [1, 1, 1], lightPos, focalPoint, lightUp, true, renderer.gl);

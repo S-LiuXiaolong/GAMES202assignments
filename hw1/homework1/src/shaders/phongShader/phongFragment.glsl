@@ -87,12 +87,46 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
   }
 }
 
-float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
-	return 1.0;
+float bias() {
+  vec3 lightDir = normalize(uLightPos);
+  vec3 normal = normalize(vNormal);
+  return max(0.005 * (1.0 - dot(normal, lightDir)), 0.005);
 }
 
+float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
+  // texture2D: https://thebookofshaders.com/glossary/?search=texture2D
+  // 以及 https://learnopengl-cn.github.io/01%20Getting%20started/06%20Textures/
+  float bias = bias();
+  vec4 depthpack = texture2D(shadowMap,shadowCoord.xy);
+  float depthUnpack =unpack(depthpack);
+  // 检查当前片段是否在阴影中
+  if(depthUnpack > shadowCoord.z - bias)
+      return 1.0;
+  return 0.0;
+}
+// https://developer.nvidia.com/gpugems/gpugems/part-ii-lighting-and-shadows/chapter-11-shadow-map-antialiasing
+// 随机分布的范围是-1到1，直接在某个像素点计算的话直接飞出uv坐标外了，需要乘一个单位偏移，根据shadowMap的像素来，
+// 比如长宽均为2048像素的可以设置一个unit offset=1/2048 他就会在某个像素的周围，按照filter size为半径找随机采样点
 float PCF(sampler2D shadowMap, vec4 coords) {
-  return 1.0;
+  float bias = bias();
+  float shadow = 0.0;
+  float currentDepth = coords.z;
+  //vec2 filterSize = 1.0 / textureSize(shadowMap, 0);
+  float filterSize=  1.0 / 2048.0 * 10.0; // 取10，则在10个像素的范围内寻找采样点
+  uniformDiskSamples(coords.xy);
+  for(int i = 0; i < PCF_NUM_SAMPLES; ++i)
+  {
+    vec4 depthpack = texture2D(shadowMap, coords.xy + poissonDisk[i]*filterSize); // 对纹理坐标进行偏移，确保每个新样本，来自不同的深度值
+    //float depthUnpack =unpack(vec4(depthpack.xyz,1.0));
+    float depthUnpack = unpack(depthpack);
+    shadow += (currentDepth - bias > depthUnpack ? 0.0 : 1.0);
+  }
+  shadow /= float(PCF_NUM_SAMPLES);
+  return shadow;
+}
+
+float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
+	return 1.0;
 }
 
 float PCSS(sampler2D shadowMap, vec4 coords){
@@ -105,22 +139,6 @@ float PCSS(sampler2D shadowMap, vec4 coords){
   
   return 1.0;
 
-}
-
-float bias() {
-  vec3 lightDir = normalize(uLightPos);
-  vec3 normal = normalize(vNormal);
-  return max(0.005 * (1.0 - dot(normal, lightDir)), 0.005);
-}
-
-float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
-  // texture2D: https://thebookofshaders.com/glossary/?search=texture2D
-  vec4 depthpack = texture2D(shadowMap,shadowCoord.xy);
-  float depthUnpack =unpack(depthpack);
-   // 检查当前片段是否在阴影中
-  if(depthUnpack > shadowCoord.z - bias())
-      return 1.0;
-  return 0.0;
 }
 
 vec3 blinnPhong() {
@@ -153,8 +171,8 @@ void main(void) {
   vec3 projCoords = vPositionFromLight.xyz / vPositionFromLight.w;
   // transform to [0,1] range 变换到[0,1]的范围
   vec3 shadowCoord = projCoords * 0.5 + 0.5;
-  visibility = useShadowMap(uShadowMap, vec4(shadowCoord, 1.0));
-  //visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
+  // visibility = useShadowMap(uShadowMap, vec4(shadowCoord, 1.0));
+  visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
   //visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
   
   vec3 phongColor = blinnPhong();
