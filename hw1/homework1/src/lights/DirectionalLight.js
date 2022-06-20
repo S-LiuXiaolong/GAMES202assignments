@@ -16,6 +16,7 @@ class DirectionalLight {
     }
 
     CalcLightMVP(translate, scale) {
+        // 默认初始化为单位矩阵
         let lightMVP = mat4.create();
         let modelMatrix = mat4.create();
         let viewMatrix = mat4.create();
@@ -36,6 +37,7 @@ class DirectionalLight {
         mat4.lookAt(viewMatrix, this.lightPos, this.focalPoint, this.lightUp);
         // Projection transform
         mat4.ortho(projectionMatrix, -120.0, 120.0, -120.0, 120.0, 0, 500);
+        // mat4.ortho(projectionMatrix, -50.0, 50.0, -50.0, 50.0, 0, 500);
 
         mat4.multiply(lightMVP, projectionMatrix, viewMatrix);
         mat4.multiply(lightMVP, lightMVP, modelMatrix);

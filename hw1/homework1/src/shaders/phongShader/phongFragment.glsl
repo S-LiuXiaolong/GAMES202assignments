@@ -112,8 +112,8 @@ float PCF(sampler2D shadowMap, vec4 coords) {
   float shadow = 0.0;
   float currentDepth = coords.z;
   //vec2 filterSize = 1.0 / textureSize(shadowMap, 0);
-  float filterSize=  1.0 / 2048.0 * 10.0; // 取10，则在10个像素的范围内寻找采样点
-  uniformDiskSamples(coords.xy);
+  float filterSize=  1.0 / 2048.0 * 5.0; // 取10，则在10个像素的范围内寻找采样点
+  poissonDiskSamples(coords.xy);
   for(int i = 0; i < PCF_NUM_SAMPLES; ++i)
   {
     vec4 depthpack = texture2D(shadowMap, coords.xy + poissonDisk[i]*filterSize); // 对纹理坐标进行偏移，确保每个新样本，来自不同的深度值
@@ -126,16 +126,62 @@ float PCF(sampler2D shadowMap, vec4 coords) {
 }
 
 float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
-	return 1.0;
+  poissonDiskSamples(uv);
+  float bias = bias();
+  float filterSize=  1.0 / 2048.0 * 20.0;
+  float totalDepth = 0.0;
+  int blockCount = 0;
+
+  for(int i=0; i<NUM_SAMPLES; i++) {
+    vec4 uvDepthpack = texture2D(shadowMap, uv + poissonDisk[i] * filterSize);
+    float uvDepthUnpack = unpack(uvDepthpack);
+    if(zReceiver > (uvDepthUnpack + bias)) {
+      totalDepth += uvDepthUnpack;
+      blockCount += 1;
+    }
+  }
+    //没有遮挡
+  if(blockCount == 0){
+    return -1.0;
+  }
+
+  //完全遮挡
+  if(blockCount == NUM_SAMPLES){
+    return 2.0;
+  }
+
+	return totalDepth/float( blockCount );
 }
 
 float PCSS(sampler2D shadowMap, vec4 coords){
 
   // STEP 1: avgblocker depth
+  float zBlocker=findBlocker(shadowMap,coords.xy,coords.z);
+  if(zBlocker<EPS){//没有被遮挡
+    return 1.0;
+  }
 
+  if(zBlocker >1.0+EPS){
+    return 0.0;
+  }
   // STEP 2: penumbra size
-
+  float penumbraScale =(coords.z -zBlocker) /zBlocker;
   // STEP 3: filtering
+  float bias = bias();
+  float shadow = 0.0;
+  float currentDepth = coords.z;
+  //vec2 filterSize = 1.0 / textureSize(shadowMap, 0);
+  float filterSize=  1.0 / 2048.0 * (penumbraScale * 20.0); 
+  poissonDiskSamples(coords.xy);
+  for(int i = 0; i < PCF_NUM_SAMPLES; ++i)
+  {
+    vec4 depthpack = texture2D(shadowMap, coords.xy + poissonDisk[i]*filterSize); // 对纹理坐标进行偏移，确保每个新样本，来自不同的深度值
+    //float depthUnpack =unpack(vec4(depthpack.xyz,1.0));
+    float depthUnpack = unpack(depthpack);
+    shadow += (currentDepth - bias > depthUnpack ? 0.0 : 1.0);
+  }
+  shadow /= float(PCF_NUM_SAMPLES);
+  return shadow;
   
   return 1.0;
 
@@ -172,12 +218,14 @@ void main(void) {
   // transform to [0,1] range 变换到[0,1]的范围
   vec3 shadowCoord = projCoords * 0.5 + 0.5;
   // visibility = useShadowMap(uShadowMap, vec4(shadowCoord, 1.0));
-  visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
-  //visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
+  // visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
+  visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
   
   vec3 phongColor = blinnPhong();
 
   gl_FragColor = vec4(phongColor * visibility, 1.0);
+
+  // gl_FragColor = vec4(vec3(0.75) * visibility, 1.0);
   // gl_FragColor = vec4(phongColor, 1.0);
   // gl_FragColor = vPositionFromLight;
   // gl_FragColor = vec4(shadowCoord, 1);

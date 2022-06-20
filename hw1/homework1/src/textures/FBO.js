@@ -39,7 +39,7 @@
             }
     
             gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, resolution, resolution);
+            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, resolution, resolution); // 注意这里的gl.DEPTH_COMPONENT16
     
             //将纹理和渲染缓冲区对象关联到帧缓冲区对象上
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
@@ -57,7 +57,7 @@
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.bindTexture(gl.TEXTURE_2D, null);
             gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-    
             return framebuffer;
+
         }
     }
